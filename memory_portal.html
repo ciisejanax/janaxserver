@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Cold Memory Portal</title>
+
+<style>
+
+body{
+  font-family: Arial;
+  background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  color:#eee;
+  padding:30px;
+}
+
+h2{margin-top:0}
+
+.box{
+  background:rgba(0,0,0,0.35);
+  backdrop-filter: blur(8px);
+  border:1px solid #2f4f5f;
+  padding:18px;
+  margin-bottom:18px;
+  border-radius:12px;
+  box-shadow:0 0 20px rgba(0,255,200,0.08);
+}
+
+input{
+  padding:10px;
+  margin:6px;
+  border-radius:8px;
+  border:none;
+  width:260px;
+}
+
+button{
+  padding:10px 16px;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+  background:#00c9a7;
+  color:#000;
+  font-weight:bold;
+}
+
+button:hover{
+  background:#00ffcc;
+}
+
+.result{
+  padding:10px;
+  border-bottom:1px solid #2b3b44;
+}
+
+.fileicon{margin-right:8px}
+
+a{color:#4fc3f7;text-decoration:none}
+
+#logoutBtn{
+  float:right;
+  background:#ff5e5e;
+}
+
+#logoutBtn:hover{
+  background:#ff8080;
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- ================= LOGIN ================= -->
+
+<div id="loginBox" class="box">
+<h3>🔒 Cold Memory Login</h3>
+<input type="password" id="pw" placeholder="enter password">
+<button onclick="login()">Enter</button>
+<div id="loginMsg"></div>
+</div>
+
+<!-- ================= PORTAL ================= -->
+
+<div id="portal" style="display:none;">
+
+<button id="logoutBtn" onclick="logout()">Logout</button>
+
+<h2>🧊 Cold Memory Portal</h2>
+
+<div class="box">
+Server Base URL:<br>
+<input id="base" size="60" value="http://192.168.0.3:8000">
+</div>
+
+<div class="box">
+📤 Upload File<br>
+<input type="file" id="file">
+<button onclick="upload()">Upload</button>
+<div id="uploadStatus"></div>
+</div>
+
+<div class="box">
+🔍 Search Files<br>
+<input id="q" placeholder="type filename">
+<button onclick="search()">Search</button>
+<div id="results"></div>
+</div>
+
+</div>
+
+<script>
+
+/* ================= CONFIG ================= */
+
+const PASSWORD = "Janax123"
+const SESSION_KEY = "cold_memory_login"
+
+/* ================= SESSION ================= */
+
+function checkSession(){
+  if(localStorage.getItem(SESSION_KEY)==="ok"){
+    showPortal()
+  }
+}
+
+function login(){
+  if(pw.value === PASSWORD){
+    localStorage.setItem(SESSION_KEY,"ok")
+    showPortal()
+  } else {
+    loginMsg.innerText="❌ wrong password"
+  }
+}
+
+function logout(){
+  localStorage.removeItem(SESSION_KEY)
+  location.reload()
+}
+
+function showPortal(){
+  loginBox.style.display="none"
+  portal.style.display="block"
+}
+
+/* ================= API ================= */
+
+function base(){
+  return document.getElementById("base").value.replace(/\/+$/,'')
+}
+
+function api(p){
+  return base()+p
+}
+
+/* ================= ICON ================= */
+
+function iconFor(n){
+  n=n.toLowerCase()
+  if(n.endsWith(".pdf")) return "📕"
+  if(n.endsWith(".doc")||n.endsWith(".docx")) return "📘"
+  if(n.match(/\.(png|jpg|jpeg|gif)$/)) return "🖼️"
+  if(n.match(/\.(mp3|wav|flac|aac)$/)) return "🎵"
+  if(n.endsWith(".zip")) return "🗜️"
+  return "📄"
+}
+
+/* ================= UPLOAD ================= */
+
+async function upload(){
+  let f=file.files[0]
+  if(!f) return alert("choose file")
+
+  let fd=new FormData()
+  fd.append("file",f)
+
+  let r=await fetch(api("/upload"),{method:"POST",body:fd})
+  uploadStatus.innerText=await r.text()
+}
+
+/* ================= SEARCH ================= */
+
+async function search(){
+
+  let q=document.getElementById("q").value.trim()
+  if(!q) return
+
+  results.innerHTML="Searching..."
+
+  let r=await fetch(api("/search?q="+encodeURIComponent(q)))
+  let j=await r.json()
+
+  let html=""
+
+  j.results.forEach(item=>{
+
+    // ✅ FIX — properly encode filename for download
+   const safeURL = item.type === "folder"
+  ? api("/download_folder?name="+encodeURIComponent(item.filename))
+  : api("/download?name="+encodeURIComponent(item.filename))
+
+    html+=`
+      <div class="result">
+        <span class="fileicon">${iconFor(item.filename)}</span>
+        <b>${item.filename}</b> (${item.size_kb} KB)
+        <br>
+        <a href="${safeURL}" download>⬇ Download</a>
+      </div>`
+  })
+
+  if(j.results.length===0) html="No files found"
+
+  results.innerHTML=html
+}
+
+/* ================= INIT ================= */
+checkSession()
+</script>
+
+</body>
+</html>
+
